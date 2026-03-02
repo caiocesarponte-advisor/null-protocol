@@ -2,10 +2,9 @@
   "name": "@null-protocol/scenario-kit",
   "version": "0.0.0",
   "private": true,
-  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "node ./scripts/build.mjs",
     "lint": "eslint . --ext .ts",
     "test": "jest --config ./jest.config.cjs",
     "typecheck": "tsc --noEmit"
@@ -16,5 +15,14 @@
   "devDependencies": {
     "@null-protocol/eslint-config": "workspace:*"
   },
-  "type": "commonjs"
+  "type": "commonjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs"
 }
