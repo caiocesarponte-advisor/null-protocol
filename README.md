@@ -7,9 +7,14 @@ A especificação principal do projeto está em:
 - `DOCS/AI_PROJECT_SPECIFICATION.md`
 
 ## Status do repositório
-Atualmente o projeto está em **Phase 1 (foundations only)**: baseline de monorepo, toolchain e padrões de entrega.
+Atualmente o projeto está em **Phase 4 (runtime + loader + persistência simulada)**.
 
-Isso significa que nesta fase **não há** implementação de lógica real de engine, autenticação, banco de dados, sockets, acesso a dispositivos, NFC/Wi-Fi, scanning, brute force, exploração ou qualquer integração com sistemas reais.
+Já existem entregas funcionais de:
+- validação de cenários (`@null-protocol/scenario-kit`),
+- engine determinística com event log e replay (`@null-protocol/engine`),
+- demo web com carregamento de cenário e persistência local simulada (`apps/web`).
+
+O projeto continua seguindo os non-goals de segurança: **não há** integração com sistemas reais (autenticação real, scanning real, brute force, exploração, acesso a dispositivos, sockets de baixo nível etc.).
 
 ## Documentação
 Todos os documentos de produto, arquitetura, segurança e entrega estão centralizados em `DOCS/`:
@@ -34,3 +39,7 @@ Todos os documentos de produto, arquitetura, segurança e entrega estão central
 Este projeto **não** implementa interação real com redes/sistemas (ex.: scanning real, packet sniffing, brute force, exploit automation, raw sockets, execução OS).
 
 Todas as interações são simulações controladas pelo motor.
+
+
+## Próximo marco recomendado
+**Phase 5: UX da demo, empacotamento/distribuição e hardening de validação/replay.**

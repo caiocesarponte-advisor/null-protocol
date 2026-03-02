@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export const metadata = {
   title: "null-protocol",
-  description: "Phase 1 monorepo foundations"
+  description: "Phase 4 runtime + loader + persistence demo"
 };
 
 type RootLayoutProps = {
