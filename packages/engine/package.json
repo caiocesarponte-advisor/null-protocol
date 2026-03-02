@@ -2,10 +2,18 @@
   "name": "@null-protocol/engine",
   "version": "0.0.0",
   "private": true,
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "node ./scripts/build.mjs",
     "lint": "eslint . --ext .ts",
     "test": "jest --config ./jest.config.cjs",
     "typecheck": "tsc --noEmit"
