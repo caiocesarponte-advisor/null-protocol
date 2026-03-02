@@ -1,4 +1,5 @@
-import { Scenario, validateScenario } from "../src";
+import { validateScenario } from "../src";
+import type { Scenario } from "../src";
 
 const validScenario: Scenario = {
   schemaVersion: "1",

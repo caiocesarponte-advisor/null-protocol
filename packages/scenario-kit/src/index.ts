@@ -174,24 +174,30 @@ export const validateScenario = (
     return { success: false, errors };
   }
 
+  const data: Scenario = {
+    schemaVersion: scenario.schemaVersion as Scenario["schemaVersion"],
+    metadata: scenario.metadata as Scenario["metadata"],
+    initialState: scenario.initialState as Scenario["initialState"],
+    actions: (scenario.actions as ScenarioActionDefinition[]).map((entry) => ({
+      ...entry,
+      payload: entry.payload ?? {}
+    })),
+    transitions: (scenario.transitions as ScenarioTransition[]).map((entry) => ({
+      ...entry,
+      preconditions: entry.preconditions ?? [],
+      setFlags: entry.setFlags ?? []
+    })),
+    completionConditions: (scenario.completionConditions as Scenario["completionConditions"]) ?? [],
+    ...(scenario.scoringRules !== undefined
+      ? { scoringRules: scenario.scoringRules as Scenario["scoringRules"] }
+      : {}),
+    ...(scenario.narrativeContent !== undefined
+      ? { narrativeContent: scenario.narrativeContent as Scenario["narrativeContent"] }
+      : {})
+  };
+
   return {
     success: true,
-    data: {
-      schemaVersion: scenario.schemaVersion as Scenario["schemaVersion"],
-      metadata: scenario.metadata as Scenario["metadata"],
-      initialState: scenario.initialState as Scenario["initialState"],
-      actions: (scenario.actions as ScenarioActionDefinition[]).map((entry) => ({
-        ...entry,
-        payload: entry.payload ?? {}
-      })),
-      transitions: (scenario.transitions as ScenarioTransition[]).map((entry) => ({
-        ...entry,
-        preconditions: entry.preconditions ?? [],
-        setFlags: entry.setFlags ?? []
-      })),
-      completionConditions: (scenario.completionConditions as Scenario["completionConditions"]) ?? [],
-      scoringRules: scenario.scoringRules as Scenario["scoringRules"],
-      narrativeContent: scenario.narrativeContent as Scenario["narrativeContent"]
-    }
+    data
   };
 };

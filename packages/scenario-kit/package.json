@@ -2,8 +2,8 @@
   "name": "@null-protocol/scenario-kit",
   "version": "0.0.0",
   "private": true,
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "lint": "eslint . --ext .ts",
@@ -12,5 +12,6 @@
   },
   "devDependencies": {
     "@null-protocol/eslint-config": "workspace:*"
-  }
+  },
+  "type": "commonjs"
 }
