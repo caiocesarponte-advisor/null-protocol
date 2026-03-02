@@ -1,6 +1,12 @@
 import type { Scenario } from "@null-protocol/scenario-kit";
 
-import { createEngine, InvalidActionError, replayScenario, ValidationError } from "../src";
+import {
+  createEngine,
+  InvalidActionError,
+  replayScenario,
+  TransitionError,
+  ValidationError
+} from "../src";
 
 const baseScenario: Scenario = {
   schemaVersion: "1",
@@ -90,6 +96,40 @@ describe("engine determinism and replay", () => {
     if (!invalidPayload.ok) {
       expect(invalidPayload.error).toBeInstanceOf(ValidationError);
     }
+  });
+
+
+  it("Replay validation: corrupted event logs are rejected", () => {
+    expect(() =>
+      replayScenario({
+        scenario: baseScenario,
+        events: [{ eventIndex: 0, id: "evt-0", action: null, effects: [], stateHash: "broken" } as never]
+      })
+    ).toThrow("Corrupted event log");
+  });
+
+  it("Replay validation: incompatible scenarios are rejected", () => {
+    const engine = createEngine({ scenario: baseScenario });
+    engine.dispatch({ type: "openGate", payload: { key: "alpha" } });
+
+    const incompatibleScenario: Scenario = {
+      ...baseScenario,
+      transitions: baseScenario.transitions.filter((transition) => transition.actionType !== "openGate")
+    };
+
+    expect(() => replayScenario({ scenario: incompatibleScenario, events: engine.getEventLog() })).toThrow(
+      "No eligible transition found"
+    );
+  });
+
+  it("Replay validation: state hash mismatch signals restoration regression", () => {
+    const engine = createEngine({ scenario: baseScenario });
+    engine.dispatch({ type: "openGate", payload: { key: "alpha" } });
+
+    const corrupted = structuredClone(engine.getEventLog());
+    corrupted[0].stateHash = "tampered";
+
+    expect(() => replayScenario({ scenario: baseScenario, events: corrupted })).toThrow(TransitionError);
   });
 
   it("Transition rules: unmet preconditions fail and initialState stays immutable", () => {
