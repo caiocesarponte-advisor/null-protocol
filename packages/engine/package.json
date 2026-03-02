@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@null-protocol/eslint-config": "workspace:*"
+    "@null-protocol/eslint-config": "workspace:*",
+    "tsup": "^8.3.5"
   },
   "dependencies": {
     "@null-protocol/scenario-kit": "workspace:*"
