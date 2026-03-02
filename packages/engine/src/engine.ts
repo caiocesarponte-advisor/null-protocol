@@ -42,6 +42,10 @@ const getPath = (state: Record<string, unknown>, path: string): unknown => {
   let current: unknown = state;
 
   for (const segment of segments) {
+    if (!segment) {
+      return undefined;
+    }
+
     if (!current || typeof current !== "object") {
       return undefined;
     }
@@ -54,10 +58,19 @@ const getPath = (state: Record<string, unknown>, path: string): unknown => {
 
 const setPath = (state: Record<string, unknown>, path: string, value: unknown): void => {
   const segments = path.split(".");
+  const lastSegment = segments.at(-1);
+  if (!lastSegment) {
+    return;
+  }
+
   let current: Record<string, unknown> = state;
 
   for (let index = 0; index < segments.length - 1; index += 1) {
     const segment = segments[index];
+    if (!segment) {
+      return;
+    }
+
     const next = current[segment];
     if (!next || typeof next !== "object" || Array.isArray(next)) {
       current[segment] = {};
@@ -65,7 +78,7 @@ const setPath = (state: Record<string, unknown>, path: string, value: unknown): 
     current = current[segment] as Record<string, unknown>;
   }
 
-  current[segments[segments.length - 1]] = value;
+  current[lastSegment] = value;
 };
 
 const matchesPreconditions = (state: State, transition: ScenarioTransition): boolean =>
