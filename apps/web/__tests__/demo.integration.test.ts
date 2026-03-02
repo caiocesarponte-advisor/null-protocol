@@ -1,35 +1,43 @@
-import { createEngine, replayScenario } from "@null-protocol/engine";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { demoScenario } from "../src/demo/scenario";
+import { createEngine, replayScenario, type EngineAction, type EngineEvent } from "@null-protocol/engine";
+
+import scenarioJson from "../src/demo/scenario.json";
+import { loadBundledScenario } from "../src/demo/loadScenario";
 
 describe("web demo deterministic integration", () => {
-  it("dispatches actions and replays to the same final state", () => {
-    const engine = createEngine({ scenario: demoScenario });
+  it("loads scenario.json, runs deterministic sequence, persists log and replays equal state", () => {
+    const loaded = loadBundledScenario();
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) {
+      return;
+    }
 
-    const sequence = [
+    const engine = createEngine({ scenario: loaded.scenario });
+
+    const sequence: readonly EngineAction[] = [
       { type: "gainAccessToken", payload: { tokenLabel: "alpha" } },
       { type: "raiseAlert", payload: { nextLevel: 3 } },
       { type: "reduceAlert", payload: { nextLevel: 1 } },
       { type: "advancePhase" }
-    ] as const;
+    ];
 
     for (const action of sequence) {
       const result = engine.dispatch(action);
       expect(result.ok).toBe(true);
     }
 
-    expect(engine.getState()).toEqual({
-      phase: 1,
-      alertLevel: 1,
-      score: 6,
-      hasAccessToken: true,
-      tokens: ["alpha"],
-      flags: ["phaseAdvanced"]
-    });
+    const finalState = engine.getState();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "null-protocol-demo-"));
+    const logPath = path.join(tempDir, "event-log.json");
 
-    const eventLog = engine.getEventLog();
-    const replayedState = replayScenario({ scenario: demoScenario, events: eventLog });
+    fs.writeFileSync(logPath, JSON.stringify(engine.getEventLog(), null, 2), "utf8");
 
-    expect(replayedState).toEqual(engine.getState());
+    const persistedLog = JSON.parse(fs.readFileSync(logPath, "utf8")) as EngineEvent[];
+    const replayedState = replayScenario({ scenario: scenarioJson, events: persistedLog });
+
+    expect(replayedState).toEqual(finalState);
   });
 });

@@ -1,0 +1,20 @@
+{
+  "name": "@null-protocol/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "cli": "yarn build && node ./dist/index.js",
+    "lint": "eslint . --ext .ts",
+    "test": "jest --config ./jest.config.cjs --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@null-protocol/engine": "workspace:*",
+    "@null-protocol/scenario-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@null-protocol/eslint-config": "workspace:*"
+  }
+}
