@@ -948,7 +948,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@null-protocol/engine@workspace:packages/engine":
+"@null-protocol/engine@workspace:*, @null-protocol/engine@workspace:packages/engine":
   version: 0.0.0-use.local
   resolution: "@null-protocol/engine@workspace:packages/engine"
   dependencies:
@@ -990,7 +990,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@null-protocol/web@workspace:apps/web"
   dependencies:
+    "@null-protocol/engine": "workspace:*"
     "@null-protocol/eslint-config": "workspace:*"
+    "@null-protocol/scenario-kit": "workspace:*"
     "@types/react": "npm:^18.3.18"
     "@types/react-dom": "npm:^18.3.5"
     eslint: "npm:^8.57.1"
