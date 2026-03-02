@@ -58,17 +58,22 @@ export const demoScenario: Scenario = {
         { path: "hasAccessToken", op: "set", value: true },
         { path: "tokens", op: "appendUnique", fromActionPayload: "tokenLabel" }
       ],
-      scoreDelta: 2
+      scoreDelta: 2,
+      setFlags: []
     },
     {
       actionType: "raiseAlert",
+      preconditions: [],
       updates: [{ path: "alertLevel", op: "set", fromActionPayload: "nextLevel" }],
-      scoreDelta: 1
+      scoreDelta: 1,
+      setFlags: []
     },
     {
       actionType: "reduceAlert",
+      preconditions: [],
       updates: [{ path: "alertLevel", op: "set", fromActionPayload: "nextLevel" }],
-      scoreDelta: 1
+      scoreDelta: 1,
+      setFlags: []
     },
     {
       actionType: "advancePhase",
@@ -79,6 +84,7 @@ export const demoScenario: Scenario = {
     },
     {
       actionType: "resetProgress",
+      preconditions: [],
       updates: [
         { path: "phase", op: "set", value: 0 },
         { path: "alertLevel", op: "set", value: 0 },
@@ -86,7 +92,8 @@ export const demoScenario: Scenario = {
         { path: "hasAccessToken", op: "set", value: false },
         { path: "tokens", op: "set", value: [] },
         { path: "flags", op: "set", value: [] }
-      ]
+      ],
+      setFlags: []
     }
   ],
   completionConditions: [{ type: "scoreAtLeast", score: 6 }]
