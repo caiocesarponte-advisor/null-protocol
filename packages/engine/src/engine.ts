@@ -1,11 +1,12 @@
 import {
-  Scenario,
-  ScenarioActionDefinition,
-  ScenarioTransition,
+  type Scenario,
+  type ScenarioActionDefinition,
+  type ScenarioTransition,
   validateScenario
 } from "@null-protocol/scenario-kit";
+
 import { InvalidActionError, TransitionError, ValidationError } from "./errors";
-import { DispatchResult, EngineAction, EngineEvent, EngineParams, State } from "./types";
+import type { DispatchResult, EngineAction, EngineEvent, EngineParams, State } from "./types";
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 

@@ -1,4 +1,5 @@
-import { Scenario } from "@null-protocol/scenario-kit";
+import type { Scenario } from "@null-protocol/scenario-kit";
+
 import { createEngine, InvalidActionError, replayScenario, ValidationError } from "../src";
 
 const baseScenario: Scenario = {
