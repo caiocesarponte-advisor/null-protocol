@@ -6,6 +6,11 @@ Null Protocol é um framework open source de simulação educacional em ciberseg
 A especificação principal do projeto está em:
 - `DOCS/AI_PROJECT_SPECIFICATION.md`
 
+## Status do repositório
+Atualmente o projeto está em **Phase 1 (foundations only)**: baseline de monorepo, toolchain e padrões de entrega.
+
+Isso significa que nesta fase **não há** implementação de lógica real de engine, autenticação, banco de dados, sockets, acesso a dispositivos, NFC/Wi-Fi, scanning, brute force, exploração ou qualquer integração com sistemas reais.
+
 ## Documentação
 Todos os documentos de produto, arquitetura, segurança e entrega estão centralizados em `DOCS/`:
 

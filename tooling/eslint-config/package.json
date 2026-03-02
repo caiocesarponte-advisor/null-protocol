@@ -1,0 +1,10 @@
+{
+  "name": "@null-protocol/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "base.cjs",
+  "files": [
+    "base.cjs",
+    "next.cjs"
+  ]
+}
