@@ -12,5 +12,8 @@
   },
   "devDependencies": {
     "@null-protocol/eslint-config": "workspace:*"
+  },
+  "dependencies": {
+    "@null-protocol/scenario-kit": "workspace:*"
   }
 }
