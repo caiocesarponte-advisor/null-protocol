@@ -1,7 +1,8 @@
 import { validateScenario } from "@null-protocol/scenario-kit";
+
 import { createEngine } from "./engine";
 import { InvalidActionError, ValidationError } from "./errors";
-import { EngineEvent, State } from "./types";
+import type { EngineEvent, State } from "./types";
 
 export const applyEventLog = ({
   scenario,

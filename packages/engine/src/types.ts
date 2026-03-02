@@ -1,4 +1,4 @@
-import { Scenario } from "@null-protocol/scenario-kit";
+import type { Scenario } from "@null-protocol/scenario-kit";
 
 export type State = Record<string, unknown>;
 

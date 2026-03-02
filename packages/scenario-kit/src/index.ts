@@ -1,203 +1,131 @@
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+import { z } from "zod";
 
-export type PayloadFieldType = "string" | "number" | "boolean" | "object" | "array" | "null";
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
-export type ScenarioActionDefinition = {
-  type: string;
-  name: string;
-  description?: string;
-  payload: Record<
-    string,
-    {
-      type: PayloadFieldType;
-      required?: boolean;
-    }
-  >;
-};
+const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(JsonValueSchema), z.record(JsonValueSchema)])
+);
 
-export type ScenarioCondition = {
-  path: string;
-  equals?: JsonValue;
-  gte?: number;
-  lte?: number;
-  truthy?: boolean;
-};
+const PayloadFieldSchema = z.object({
+  type: z.enum(["string", "number", "boolean", "object", "array", "null"]),
+  required: z.boolean().optional()
+});
 
-export type ScenarioTransition = {
-  actionType: string;
-  preconditions: ScenarioCondition[];
-  updates: Array<{
-    path: string;
-    op: "set" | "increment" | "appendUnique";
-    value?: JsonValue;
-    amount?: number;
-    fromActionPayload?: string;
-  }>;
-  scoreDelta?: number;
-  setFlags: string[];
-};
+const TransitionConditionSchema = z.object({
+  path: z.string(),
+  equals: JsonValueSchema.optional(),
+  truthy: z.boolean().optional(),
+  gte: z.number().optional(),
+  lte: z.number().optional()
+});
 
-export type Scenario = {
-  schemaVersion: "1" | 1 | "1.0.0";
-  metadata: {
-    id: string;
-    title: string;
-    difficulty?: "easy" | "medium" | "hard";
-    description?: string;
-  };
-  initialState: Record<string, JsonValue>;
-  actions: ScenarioActionDefinition[];
-  transitions: ScenarioTransition[];
-  completionConditions: Array<
-    | {
-        type: "flag";
-        flag: string;
+const TransitionUpdateSchema = z.object({
+  path: z.string(),
+  op: z.enum(["set", "increment", "appendUnique"]),
+  value: JsonValueSchema.optional(),
+  amount: z.number().optional(),
+  fromActionPayload: z.string().optional()
+});
+
+const CompletionConditionSchema = z.union([
+  z.object({ type: z.literal("flag"), flag: z.string() }),
+  z.object({ type: z.literal("scoreAtLeast"), score: z.number() })
+]);
+
+export const ScenarioActionDefinitionSchema = z.object({
+  type: z.string().min(1),
+  name: z.string().min(1),
+  payload: z.record(PayloadFieldSchema).default({})
+});
+
+export const ScenarioTransitionSchema = z.object({
+  actionType: z.string().min(1),
+  preconditions: z.array(TransitionConditionSchema).default([]),
+  updates: z.array(TransitionUpdateSchema),
+  scoreDelta: z.number().optional(),
+  setFlags: z.array(z.string()).default([])
+});
+
+const ScoringRuleSchema = z.object({
+  actionType: z.string(),
+  points: z.number()
+});
+
+export const ScenarioSchema = z
+  .object({
+    schemaVersion: z.union([z.literal("1"), z.literal(1), z.literal("1.0.0")]),
+    metadata: z.object({
+      id: z.string(),
+      title: z.string(),
+      difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+      description: z.string().optional()
+    }),
+    initialState: z.record(JsonValueSchema),
+    actions: z.array(ScenarioActionDefinitionSchema).min(1),
+    transitions: z.array(ScenarioTransitionSchema).min(1),
+    completionConditions: z.array(CompletionConditionSchema).default([]),
+    scoringRules: z.array(ScoringRuleSchema).optional(),
+    narrativeContent: z.array(z.object({ id: z.string(), text: z.string() })).optional()
+  })
+  .superRefine((scenario, context) => {
+    const actionTypes = new Set<string>();
+    const actionNames = new Set<string>();
+
+    scenario.actions.forEach((action, index) => {
+      if (actionTypes.has(action.type)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["actions", index, "type"],
+          message: `actions: Duplicate action type '${action.type}'`
+        });
       }
-    | {
-        type: "scoreAtLeast";
-        score: number;
+      actionTypes.add(action.type);
+
+      if (actionNames.has(action.name)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["actions", index, "name"],
+          message: `actions: Duplicate action name '${action.name}'`
+        });
       }
-  >;
-  scoringRules?: Array<{ actionType: string; points: number }>;
-  narrativeContent?: Array<{ id: string; text: string }>;
-};
+      actionNames.add(action.name);
+    });
 
-export const ScenarioSchema = {
-  safeParse: (scenario: unknown): { success: true; data: Scenario } | { success: false; errors: string[] } =>
-    validateScenario(scenario)
-};
+    scenario.transitions.forEach((transition, index) => {
+      if (!actionTypes.has(transition.actionType)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["transitions", index, "actionType"],
+          message: `transitions: Transition references unknown action type '${transition.actionType}'`
+        });
+      }
+    });
+  });
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isJsonValue = (value: unknown): value is JsonValue => {
-  if (value === null) {
-    return true;
-  }
-
-  if (["string", "number", "boolean"].includes(typeof value)) {
-    return true;
-  }
-
-  if (Array.isArray(value)) {
-    return value.every((entry) => isJsonValue(entry));
-  }
-
-  if (isRecord(value)) {
-    return Object.values(value).every((entry) => isJsonValue(entry));
-  }
-
-  return false;
-};
+export type ScenarioActionDefinition = z.infer<typeof ScenarioActionDefinitionSchema>;
+export type ScenarioTransition = z.infer<typeof ScenarioTransitionSchema>;
+export type Scenario = z.infer<typeof ScenarioSchema>;
 
 export const validateScenario = (
-  scenario: unknown
+  input: unknown
 ): { success: true; data: Scenario } | { success: false; errors: string[] } => {
-  const errors: string[] = [];
+  const parseResult = ScenarioSchema.safeParse(input);
 
-  if (!isRecord(scenario)) {
-    return { success: false, errors: ["Scenario must be an object"] };
+  if (!parseResult.success) {
+    return {
+      success: false,
+      errors: parseResult.error.issues.map((issue) => {
+        const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+        return `${path}${issue.message}`;
+      })
+    };
   }
 
-  if (!["1", 1, "1.0.0"].includes(scenario.schemaVersion as string | number)) {
-    errors.push("schemaVersion: must be 1, '1', or '1.0.0'");
-  }
-
-  if (!isRecord(scenario.metadata)) {
-    errors.push("metadata: required object");
-  } else {
-    if (!scenario.metadata.id || typeof scenario.metadata.id !== "string") {
-      errors.push("metadata.id: required string");
-    }
-    if (!scenario.metadata.title || typeof scenario.metadata.title !== "string") {
-      errors.push("metadata.title: required string");
-    }
-  }
-
-  if (!isRecord(scenario.initialState) || !isJsonValue(scenario.initialState)) {
-    errors.push("initialState: required JSON-serializable object");
-  }
-
-  if (!Array.isArray(scenario.actions) || scenario.actions.length === 0) {
-    errors.push("actions: requires at least one action");
-  }
-
-  const actionTypes = new Set<string>();
-  const actionNames = new Set<string>();
-  if (Array.isArray(scenario.actions)) {
-    scenario.actions.forEach((action, index) => {
-      if (!isRecord(action)) {
-        errors.push(`actions.${index}: must be object`);
-        return;
-      }
-      if (typeof action.type !== "string" || action.type.length === 0) {
-        errors.push(`actions.${index}.type: required string`);
-      } else if (actionTypes.has(action.type)) {
-        errors.push(`actions: Duplicate action type '${action.type}'`);
-      } else {
-        actionTypes.add(action.type);
-      }
-
-      if (typeof action.name !== "string" || action.name.length === 0) {
-        errors.push(`actions.${index}.name: required string`);
-      } else if (actionNames.has(action.name)) {
-        errors.push(`actions: Duplicate action name '${action.name}'`);
-      } else {
-        actionNames.add(action.name);
-      }
-
-      if (action.payload !== undefined && !isRecord(action.payload)) {
-        errors.push(`actions.${index}.payload: must be object`);
-      }
-    });
-  }
-
-  if (!Array.isArray(scenario.transitions) || scenario.transitions.length === 0) {
-    errors.push("transitions: requires at least one transition");
-  } else {
-    scenario.transitions.forEach((transition, index) => {
-      if (!isRecord(transition)) {
-        errors.push(`transitions.${index}: must be object`);
-        return;
-      }
-
-      if (typeof transition.actionType !== "string" || transition.actionType.length === 0) {
-        errors.push(`transitions.${index}.actionType: required string`);
-      } else if (!actionTypes.has(transition.actionType)) {
-        errors.push(`transitions: Transition references unknown action type '${transition.actionType}'`);
-      }
-    });
-  }
-
-  if (errors.length > 0) {
-    return { success: false, errors };
-  }
-
-  const data: Scenario = {
-    schemaVersion: scenario.schemaVersion as Scenario["schemaVersion"],
-    metadata: scenario.metadata as Scenario["metadata"],
-    initialState: scenario.initialState as Scenario["initialState"],
-    actions: (scenario.actions as ScenarioActionDefinition[]).map((entry) => ({
-      ...entry,
-      payload: entry.payload ?? {}
-    })),
-    transitions: (scenario.transitions as ScenarioTransition[]).map((entry) => ({
-      ...entry,
-      preconditions: entry.preconditions ?? [],
-      setFlags: entry.setFlags ?? []
-    })),
-    completionConditions: (scenario.completionConditions as Scenario["completionConditions"]) ?? [],
-    ...(scenario.scoringRules !== undefined
-      ? { scoringRules: scenario.scoringRules as Scenario["scoringRules"] }
-      : {}),
-    ...(scenario.narrativeContent !== undefined
-      ? { narrativeContent: scenario.narrativeContent as Scenario["narrativeContent"] }
-      : {})
-  };
-
-  return {
-    success: true,
-    data
-  };
+  return { success: true, data: parseResult.data };
 };
