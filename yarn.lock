@@ -951,10 +951,12 @@ __metadata:
 "@null-protocol/engine@workspace:packages/engine":
   version: 0.0.0-use.local
   resolution: "@null-protocol/engine@workspace:packages/engine"
+  dependencies:
+    "@null-protocol/eslint-config": "workspace:*"
   languageName: unknown
   linkType: soft
 
-"@null-protocol/eslint-config@workspace:tooling/eslint-config":
+"@null-protocol/eslint-config@workspace:*, @null-protocol/eslint-config@workspace:tooling/eslint-config":
   version: 0.0.0-use.local
   resolution: "@null-protocol/eslint-config@workspace:tooling/eslint-config"
   languageName: unknown
@@ -963,6 +965,8 @@ __metadata:
 "@null-protocol/scenario-kit@workspace:packages/scenario-kit":
   version: 0.0.0-use.local
   resolution: "@null-protocol/scenario-kit@workspace:packages/scenario-kit"
+  dependencies:
+    "@null-protocol/eslint-config": "workspace:*"
   languageName: unknown
   linkType: soft
 
@@ -975,6 +979,8 @@ __metadata:
 "@null-protocol/ui@workspace:packages/ui":
   version: 0.0.0-use.local
   resolution: "@null-protocol/ui@workspace:packages/ui"
+  dependencies:
+    "@null-protocol/eslint-config": "workspace:*"
   languageName: unknown
   linkType: soft
 
@@ -982,9 +988,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@null-protocol/web@workspace:apps/web"
   dependencies:
+    "@null-protocol/eslint-config": "workspace:*"
+    "@types/react": "npm:^18.3.18"
+    "@types/react-dom": "npm:^18.3.5"
+    eslint: "npm:^8.57.1"
     next: "npm:14.2.25"
     react: "npm:18.3.1"
     react-dom: "npm:18.3.1"
+    typescript: "npm:^5.7.2"
   languageName: unknown
   linkType: soft
 
@@ -1158,6 +1169,32 @@ __metadata:
   dependencies:
     undici-types: "npm:~7.18.0"
   checksum: 10c0/63e1d3816a9f4a706ab5d588d18cb98aa824b97748ff585537d327528e9438f58f69f45c7762e7cd3a1ab32c1619f551aabe8075d13172f9273cf10f6d83ab91
+  languageName: node
+  linkType: hard
+
+"@types/prop-types@npm:*":
+  version: 15.7.15
+  resolution: "@types/prop-types@npm:15.7.15"
+  checksum: 10c0/b59aad1ad19bf1733cf524fd4e618196c6c7690f48ee70a327eb450a42aab8e8a063fbe59ca0a5701aebe2d92d582292c0fb845ea57474f6a15f6994b0e260b2
+  languageName: node
+  linkType: hard
+
+"@types/react-dom@npm:^18.3.5":
+  version: 18.3.7
+  resolution: "@types/react-dom@npm:18.3.7"
+  peerDependencies:
+    "@types/react": ^18.0.0
+  checksum: 10c0/8bd309e2c3d1604a28a736a24f96cbadf6c05d5288cfef8883b74f4054c961b6b3a5e997fd5686e492be903c8f3380dba5ec017eff3906b1256529cd2d39603e
+  languageName: node
+  linkType: hard
+
+"@types/react@npm:^18.3.18":
+  version: 18.3.28
+  resolution: "@types/react@npm:18.3.28"
+  dependencies:
+    "@types/prop-types": "npm:*"
+    csstype: "npm:^3.2.2"
+  checksum: 10c0/683e19cd12b5c691215529af2e32b5ffbaccae3bf0ba93bfafa0e460e8dfee18423afed568be2b8eadf4b837c3749dd296a4f64e2d79f68fa66962c05f5af661
   languageName: node
   linkType: hard
 
@@ -2127,6 +2164,13 @@ __metadata:
     shebang-command: "npm:^2.0.0"
     which: "npm:^2.0.1"
   checksum: 10c0/053ea8b2135caff68a9e81470e845613e374e7309a47731e81639de3eaeb90c3d01af0e0b44d2ab9d50b43467223b88567dfeb3262db942dc063b9976718ffc1
+  languageName: node
+  linkType: hard
+
+"csstype@npm:^3.2.2":
+  version: 3.2.3
+  resolution: "csstype@npm:3.2.3"
+  checksum: 10c0/cd29c51e70fa822f1cecd8641a1445bed7063697469d35633b516e60fe8c1bde04b08f6c5b6022136bb669b64c63d4173af54864510fbb4ee23281801841a3ce
   languageName: node
   linkType: hard
 
