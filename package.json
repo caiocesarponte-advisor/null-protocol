@@ -8,6 +8,7 @@
     "tooling/*"
   ],
   "scripts": {
+    "clean": "find . -type d \\( -name dist -o -name .next -o -name .turbo \\) -prune -exec rm -rf {} +",
     "dev": "yarn workspace @null-protocol/web dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
