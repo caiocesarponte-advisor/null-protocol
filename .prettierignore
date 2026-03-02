@@ -1,0 +1,5 @@
+.next
+.turbo
+dist
+coverage
+node_modules
