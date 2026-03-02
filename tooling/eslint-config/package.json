@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "main": "base.cjs",
+  "exports": {
+    "./base": "./base.cjs",
+    "./next": "./next.cjs"
+  },
   "files": [
     "base.cjs",
     "next.cjs"
