@@ -7,6 +7,7 @@ module.exports = {
     ecmaVersion: "latest",
     sourceType: "module"
   },
+  ignorePatterns: ["**/dist/**"],
   rules: {
     "@typescript-eslint/no-explicit-any": "error",
     "@typescript-eslint/ban-ts-comment": [
