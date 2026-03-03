@@ -38,6 +38,40 @@ describe("authoritative server", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
+
+  it("handles CORS preflight and includes CORS headers on API responses", async () => {
+    const { server, baseUrl } = await startServer();
+
+    try {
+      const preflightResponse = await fetch(`${baseUrl}/session`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "http://localhost:3000",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "Content-Type"
+        }
+      });
+
+      expect(preflightResponse.status).toBe(204);
+      expect(preflightResponse.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
+      expect(preflightResponse.headers.get("access-control-allow-methods")).toContain("POST");
+      expect(preflightResponse.headers.get("access-control-allow-headers")).toContain("Content-Type");
+
+      const createResponse = await fetch(`${baseUrl}/session`, {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ scenario })
+      });
+
+      expect(createResponse.status).toBe(201);
+      expect(createResponse.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
+    } finally {
+      server.close();
+    }
+  });
   it("creates a session, applies 3 actions and keeps integrity ok", async () => {
     const { server, baseUrl } = await startServer();
 
