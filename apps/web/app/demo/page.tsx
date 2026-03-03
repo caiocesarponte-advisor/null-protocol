@@ -26,6 +26,10 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
     setReplayStatus(nextStatus);
   };
 
+  const runAction = async (actionType: string, payload?: Record<string, unknown>) => {
+    await engine.dispatch(actionType, payload);
+  };
+
   return (
     <>
       {engine.lastError && (
@@ -42,11 +46,40 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
         </section>
       )}
 
+      <section style={{ border: "1px solid #ddd", padding: "0.75rem", marginBottom: "1rem" }}>
+        <h2>Execution Mode</h2>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+          <button type="button" onClick={() => engine.setMode("local")}>
+            Local mode
+          </button>
+          <button type="button" onClick={() => engine.setMode("multiplayer")}>
+            Multiplayer mode
+          </button>
+          <button type="button" onClick={() => void engine.createMultiplayerSession()}>
+            Create server session
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+          <label htmlFor="sessionId">Session ID:</label>
+          <input
+            id="sessionId"
+            value={engine.sessionId}
+            onChange={(event) => engine.setSessionId(event.target.value)}
+            placeholder="Paste an existing sessionId"
+            style={{ minWidth: 320 }}
+          />
+          <button type="button" onClick={() => void engine.syncMultiplayerSession()}>
+            Join / Sync session
+          </button>
+        </div>
+        <p style={{ marginBottom: 0 }}>Current mode: {engine.mode}</p>
+      </section>
+
       <section style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
         <div>
           <label htmlFor="tokenLabel">Token label: </label>
           <input id="tokenLabel" value={tokenLabel} onChange={(event) => setTokenLabel(event.target.value)} />
-          <button type="button" onClick={() => engine.dispatch("gainAccessToken", { tokenLabel })}>
+          <button type="button" onClick={() => void runAction("gainAccessToken", { tokenLabel })}>
             gainAccessToken
           </button>
         </div>
@@ -59,7 +92,7 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
             value={raiseNextLevel}
             onChange={(event) => setRaiseNextLevel(Number(event.target.value))}
           />
-          <button type="button" onClick={() => engine.dispatch("raiseAlert", { nextLevel: raiseNextLevel })}>
+          <button type="button" onClick={() => void runAction("raiseAlert", { nextLevel: raiseNextLevel })}>
             raiseAlert
           </button>
         </div>
@@ -72,16 +105,16 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
             value={reduceNextLevel}
             onChange={(event) => setReduceNextLevel(Number(event.target.value))}
           />
-          <button type="button" onClick={() => engine.dispatch("reduceAlert", { nextLevel: reduceNextLevel })}>
+          <button type="button" onClick={() => void runAction("reduceAlert", { nextLevel: reduceNextLevel })}>
             reduceAlert
           </button>
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <button type="button" onClick={() => engine.dispatch("advancePhase")}>
+          <button type="button" onClick={() => void runAction("advancePhase")}>
             advancePhase
           </button>
-          <button type="button" onClick={() => engine.dispatch("resetProgress")}>
+          <button type="button" onClick={() => void runAction("resetProgress")}>
             resetProgress
           </button>
           <button type="button" onClick={engine.reset}>
@@ -99,14 +132,9 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
         {replayStatus === "mismatch" && <p style={{ color: "crimson", margin: 0 }}>Replay mismatch</p>}
       </section>
 
-
-
       <section style={{ marginBottom: "1rem" }}>
         <strong>
-          Integrity:{" "}
-          {engine.integrity.ok
-            ? "OK"
-            : `CORRUPTED (event ${engine.integrity.index}: ${engine.integrity.reason})`}
+          Integrity: {engine.integrity.ok ? "OK" : `CORRUPTED (event ${engine.integrity.index}: ${engine.integrity.reason})`}
         </strong>
       </section>
       <section>
@@ -160,7 +188,7 @@ export default function DemoPage() {
 
   return (
     <main style={{ fontFamily: "sans-serif", margin: "1.5rem", maxWidth: 900 }}>
-      <h1>Phase 5 Demo: Integridade + Auditoria + Determinismo Forte</h1>
+      <h1>Phase 6 Demo: Multiplayer + Sync + Authoritative Server</h1>
       <p>Scenario source: {scenarioSourceLabel}</p>
 
       <section style={{ marginBottom: "1rem" }}>

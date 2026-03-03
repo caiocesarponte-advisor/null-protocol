@@ -4,6 +4,7 @@
   "packageManager": "yarn@4.12.0",
   "workspaces": [
     "apps/web",
+    "apps/server",
     "packages/*",
     "tooling/*"
   ],
@@ -14,7 +15,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "cli": "yarn workspace @null-protocol/cli cli"
+    "cli": "yarn workspace @null-protocol/cli cli",
+    "server": "turbo run build --filter=@null-protocol/engine --filter=@null-protocol/scenario-kit --filter=@null-protocol/server && yarn workspace @null-protocol/server start"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
