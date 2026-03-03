@@ -13,12 +13,21 @@ export type EventEffect = {
   value?: unknown;
 };
 
-export type EngineEvent = {
+export type EventLogEntryV1 = {
+  v: 1;
   id: string;
+  ts: number;
+  actionType: string;
+  payload: Record<string, unknown>;
+  previousHash: string;
+  stateHash: string;
+  hash: string;
+};
+
+export type EngineEvent = EventLogEntryV1 & {
   eventIndex: number;
   action: EngineAction;
   effects: EventEffect[];
-  stateHash: string;
 };
 
 export type DispatchSuccess = {
@@ -43,3 +52,11 @@ export type EngineParams = {
   scenario: Scenario | unknown;
   initialContext?: EngineContext;
 };
+
+export type VerifyEventChainResult =
+  | { ok: true }
+  | {
+      ok: false;
+      index: number;
+      reason: string;
+    };

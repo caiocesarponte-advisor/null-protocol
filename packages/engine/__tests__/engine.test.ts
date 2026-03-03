@@ -5,7 +5,8 @@ import {
   InvalidActionError,
   replayScenario,
   TransitionError,
-  ValidationError
+  ValidationError,
+  verifyEventChain
 } from "../src";
 
 const baseScenario: Scenario = {
@@ -64,7 +65,7 @@ describe("engine determinism and replay", () => {
         expect(result.ok).toBe(true);
       }
 
-      return { state: engine.getState(), log: engine.getEventLog() };
+      return { state: engine.getState(), log: engine.getEventLog(), initialState: engine.getInitialState() };
     };
 
     const first = run();
@@ -72,6 +73,7 @@ describe("engine determinism and replay", () => {
 
     expect(first.state).toEqual(second.state);
     expect(first.log).toEqual(second.log);
+    expect(verifyEventChain(first.log, first.initialState)).toEqual({ ok: true });
   });
 
   it("Replay correctness: replay final state deep-equals engine final state", () => {
@@ -79,7 +81,11 @@ describe("engine determinism and replay", () => {
     engine.dispatch({ type: "openGate", payload: { key: "alpha" } });
     engine.dispatch({ type: "collectItem", payload: { item: "badge" } });
 
-    const replayState = replayScenario({ scenario: baseScenario, events: engine.getEventLog() });
+    const replayState = replayScenario({
+      scenario: baseScenario,
+      events: engine.getEventLog(),
+      verifyIntegrity: true
+    });
     expect(replayState).toEqual(engine.getState());
   });
 
@@ -97,7 +103,6 @@ describe("engine determinism and replay", () => {
       expect(invalidPayload.error).toBeInstanceOf(ValidationError);
     }
   });
-
 
   it("Replay validation: corrupted event logs are rejected", () => {
     expect(() =>
@@ -127,7 +132,7 @@ describe("engine determinism and replay", () => {
     engine.dispatch({ type: "openGate", payload: { key: "alpha" } });
 
     const corrupted = structuredClone(engine.getEventLog());
-    corrupted[0].stateHash = "tampered";
+    corrupted[0]!.stateHash = "tampered";
 
     expect(() => replayScenario({ scenario: baseScenario, events: corrupted })).toThrow(TransitionError);
   });
@@ -141,5 +146,43 @@ describe("engine determinism and replay", () => {
 
     expect(baseScenario.initialState).toEqual(originalState);
     expect(engine.getState()).toEqual(originalState);
+  });
+
+  it("verifyEventChain returns ok for intact logs", () => {
+    const engine = createEngine({ scenario: baseScenario });
+    engine.dispatch({ type: "openGate", payload: { key: "alpha" } });
+    engine.dispatch({ type: "collectItem", payload: { item: "badge" } });
+
+    expect(verifyEventChain(engine.getEventLog(), engine.getInitialState())).toEqual({ ok: true });
+  });
+
+  it("verifyEventChain fails at correct index when payload is tampered", () => {
+    const engine = createEngine({ scenario: baseScenario });
+    engine.dispatch({ type: "openGate", payload: { key: "alpha" } });
+    engine.dispatch({ type: "collectItem", payload: { item: "badge" } });
+
+    const tampered = structuredClone(engine.getEventLog());
+    tampered[1]!.payload = { item: "hacked" };
+
+    expect(verifyEventChain(tampered, engine.getInitialState())).toEqual({
+      ok: false,
+      index: 1,
+      reason: "hash mismatch"
+    });
+  });
+
+  it("verifyEventChain fails when removing event from middle", () => {
+    const engine = createEngine({ scenario: baseScenario });
+    engine.dispatch({ type: "openGate", payload: { key: "alpha" } });
+    engine.dispatch({ type: "collectItem", payload: { item: "badge" } });
+
+    const mutated = [...engine.getEventLog()];
+    mutated.splice(0, 1);
+
+    expect(verifyEventChain(mutated, engine.getInitialState())).toEqual({
+      ok: false,
+      index: 0,
+      reason: "previousHash mismatch"
+    });
   });
 });

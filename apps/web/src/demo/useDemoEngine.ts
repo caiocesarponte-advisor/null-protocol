@@ -1,9 +1,11 @@
 import {
   createEngine,
   replayScenario,
+  verifyEventChain,
   type EngineAction,
   type EngineEvent,
-  type State
+  type State,
+  type VerifyEventChainResult
 } from "@null-protocol/engine";
 import type { Scenario } from "@null-protocol/scenario-kit";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,9 +18,11 @@ interface UseDemoEngineResult {
   state: State;
   eventLog: readonly EngineEvent[];
   lastError: string | null;
+  integrity: VerifyEventChainResult;
   dispatch: (actionType: string, payload?: Record<string, unknown>) => void;
   reset: () => void;
   replayCheck: () => ReplayStatus;
+  corruptLog: () => void;
 }
 
 const statesMatch = (left: State, right: State): boolean =>
@@ -30,10 +34,14 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
   const [state, setState] = useState<State>(engine.getState());
   const [eventLog, setEventLog] = useState<readonly EngineEvent[]>(engine.getEventLog());
   const [lastError, setLastError] = useState<string | null>(null);
+  const [integrity, setIntegrity] = useState<VerifyEventChainResult>({ ok: true });
 
   const syncFromEngine = useCallback(() => {
-    setState(engine.getState());
-    setEventLog(engine.getEventLog());
+    const nextState = engine.getState();
+    const nextLog = engine.getEventLog();
+    setState(nextState);
+    setEventLog(nextLog);
+    setIntegrity(verifyEventChain(nextLog, engine.getInitialState()));
   }, [engine]);
 
   useEffect(() => {
@@ -61,7 +69,11 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     }
 
     try {
-      const replayedState = replayScenario({ scenario, events: saved.eventLog });
+      const replayedState = replayScenario({
+        scenario,
+        events: saved.eventLog,
+        verifyIntegrity: true
+      });
       for (const event of saved.eventLog) {
         const result = engine.dispatch(event.action);
         if (!result.ok) {
@@ -112,7 +124,7 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
 
   const replayCheck = (): ReplayStatus => {
     try {
-      const replayed = replayScenario({ scenario, events: eventLog });
+      const replayed = replayScenario({ scenario, events: eventLog, verifyIntegrity: true });
       const ok = statesMatch(replayed, state);
       setLastError(ok ? null : "Replay mismatch detected.");
       return ok ? "ok" : "mismatch";
@@ -122,12 +134,31 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     }
   };
 
+  const corruptLog = (): void => {
+    const mutable = structuredClone(eventLog);
+    if (mutable.length === 0) {
+      return;
+    }
+
+    const target = mutable[0];
+    if (!target) {
+      return;
+    }
+
+    target.payload = { ...target.payload, tokenLabel: "tampered" };
+    target.action = { ...target.action, payload: { ...(target.action.payload ?? {}), tokenLabel: "tampered" } };
+    setEventLog(mutable);
+    setIntegrity(verifyEventChain(mutable, engine.getInitialState()));
+  };
+
   return {
     state,
     eventLog,
     lastError,
+    integrity,
     dispatch,
     reset,
-    replayCheck
+    replayCheck,
+    corruptLog
   };
 };

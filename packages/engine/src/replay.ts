@@ -1,15 +1,17 @@
 import { validateScenario } from "@null-protocol/scenario-kit";
 
-import { createEngine } from "./engine";
+import { createEngine, verifyEventChain } from "./engine";
 import { InvalidActionError, TransitionError, ValidationError } from "./errors";
 import type { EngineEvent, State } from "./types";
 
 export const applyEventLog = ({
   scenario,
-  events
+  events,
+  verifyIntegrity = false
 }: {
   scenario: unknown;
   events: readonly EngineEvent[];
+  verifyIntegrity?: boolean;
 }): State => {
   const validated = validateScenario(scenario);
   if (!validated.success) {
@@ -17,6 +19,15 @@ export const applyEventLog = ({
   }
 
   const engine = createEngine({ scenario: validated.data });
+
+  if (verifyIntegrity) {
+    const integrity = verifyEventChain(events, engine.getInitialState());
+    if (!integrity.ok) {
+      throw new ValidationError(
+        `Replay integrity check failed at event ${integrity.index}: ${integrity.reason}`
+      );
+    }
+  }
 
   for (const event of events) {
     if (!event || typeof event !== "object" || !event.action || typeof event.action.type !== "string") {
