@@ -13,39 +13,75 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { clearSession, loadSavedSession, saveSession } from "./storage";
 
 export type ReplayStatus = "ok" | "mismatch";
+export type DemoMode = "local" | "multiplayer";
 
 interface UseDemoEngineResult {
+  mode: DemoMode;
   state: State;
   eventLog: readonly EngineEvent[];
   lastError: string | null;
   integrity: VerifyEventChainResult;
-  dispatch: (actionType: string, payload?: Record<string, unknown>) => void;
+  sessionId: string;
+  setSessionId: (value: string) => void;
+  setMode: (mode: DemoMode) => void;
+  dispatch: (actionType: string, payload?: Record<string, unknown>) => Promise<void>;
   reset: () => void;
   replayCheck: () => ReplayStatus;
   corruptLog: () => void;
+  createMultiplayerSession: () => Promise<void>;
+  syncMultiplayerSession: () => Promise<void>;
 }
 
-const statesMatch = (left: State, right: State): boolean =>
-  JSON.stringify(left) === JSON.stringify(right);
+const statesMatch = (left: State, right: State): boolean => JSON.stringify(left) === JSON.stringify(right);
+
+const serverBaseUrl = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:4000";
 
 export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
-  const engine = useMemo(() => createEngine({ scenario }), [scenario]);
+  const localEngine = useMemo(() => createEngine({ scenario }), [scenario]);
 
-  const [state, setState] = useState<State>(engine.getState());
-  const [eventLog, setEventLog] = useState<readonly EngineEvent[]>(engine.getEventLog());
+  const [mode, setMode] = useState<DemoMode>("local");
+  const [sessionId, setSessionId] = useState("");
+  const [state, setState] = useState<State>(localEngine.getState());
+  const [eventLog, setEventLog] = useState<readonly EngineEvent[]>(localEngine.getEventLog());
   const [lastError, setLastError] = useState<string | null>(null);
   const [integrity, setIntegrity] = useState<VerifyEventChainResult>({ ok: true });
 
-  const syncFromEngine = useCallback(() => {
-    const nextState = engine.getState();
-    const nextLog = engine.getEventLog();
+  const syncFromLocalEngine = useCallback(() => {
+    const nextState = localEngine.getState();
+    const nextLog = localEngine.getEventLog();
     setState(nextState);
     setEventLog(nextLog);
-    setIntegrity(verifyEventChain(nextLog, engine.getInitialState()));
-  }, [engine]);
+    setIntegrity(verifyEventChain(nextLog, localEngine.getInitialState()));
+  }, [localEngine]);
+
+  const reconcileFromServerLog = useCallback(
+    (log: EngineEvent[]) => {
+      const chain = verifyEventChain(log, scenario.initialState);
+      if (!chain.ok) {
+        throw new Error(`Server returned corrupted event log at index ${chain.index}`);
+      }
+
+      const replayedState = replayScenario({
+        scenario,
+        events: log,
+        verifyIntegrity: true
+      });
+      setEventLog(log);
+      setState(replayedState);
+      setIntegrity(chain);
+    },
+    [scenario]
+  );
 
   useEffect(() => {
-    syncFromEngine();
+    if (mode !== "local") {
+      setEventLog([]);
+      setState(scenario.initialState);
+      setIntegrity({ ok: true });
+      return;
+    }
+
+    syncFromLocalEngine();
     const saved = loadSavedSession();
 
     if (!saved) {
@@ -54,8 +90,7 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     }
 
     const sameScenario =
-      saved.scenarioId === scenario.metadata.id &&
-      saved.schemaVersion === String(scenario.schemaVersion);
+      saved.scenarioId === scenario.metadata.id && saved.schemaVersion === String(scenario.schemaVersion);
 
     if (!sameScenario) {
       clearSession();
@@ -69,20 +104,16 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     }
 
     try {
-      const replayedState = replayScenario({
-        scenario,
-        events: saved.eventLog,
-        verifyIntegrity: true
-      });
+      const replayedState = replayScenario({ scenario, events: saved.eventLog, verifyIntegrity: true });
       for (const event of saved.eventLog) {
-        const result = engine.dispatch(event.action);
+        const result = localEngine.dispatch(event.action);
         if (!result.ok) {
           throw result.error;
         }
       }
 
-      syncFromEngine();
-      const current = engine.getState();
+      syncFromLocalEngine();
+      const current = localEngine.getState();
       if (!statesMatch(current, replayedState)) {
         setLastError("Saved session replay mismatch detected.");
       } else {
@@ -92,34 +123,125 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
       clearSession();
       setLastError(error instanceof Error ? error.message : "Failed to restore saved session.");
     }
-  }, [engine, scenario, syncFromEngine]);
+  }, [localEngine, mode, scenario, syncFromLocalEngine]);
 
   useEffect(() => {
+    if (mode !== "local") {
+      return;
+    }
+
     saveSession({
       scenarioId: scenario.metadata.id,
       schemaVersion: String(scenario.schemaVersion),
       eventLog: [...eventLog],
       savedAt: new Date().toISOString()
     });
-  }, [eventLog, scenario.metadata.id, scenario.schemaVersion]);
+  }, [eventLog, mode, scenario.metadata.id, scenario.schemaVersion]);
 
-  const dispatch = (actionType: string, payload?: Record<string, unknown>) => {
-    const action: EngineAction = payload ? { type: actionType, payload } : { type: actionType };
-    const result = engine.dispatch(action);
-    if (!result.ok) {
-      setLastError(result.error.message);
+  const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const response = await fetch(`${serverBaseUrl}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {})
+      }
+    });
+
+    const data = (await response.json()) as T & { error?: string };
+    if (!response.ok) {
+      throw new Error(data.error ?? `Request failed with status ${response.status}`);
+    }
+
+    return data;
+  };
+
+  const createMultiplayerSession = async () => {
+    const response = await request<{ sessionId: string }>("/session", {
+      method: "POST",
+      body: JSON.stringify({ scenario })
+    });
+
+    setSessionId(response.sessionId);
+    setMode("multiplayer");
+    setLastError(null);
+    await request<{ scenario: Scenario; eventLog: EngineEvent[] }>(`/session/${response.sessionId}`).then((data) =>
+      reconcileFromServerLog(data.eventLog)
+    );
+  };
+
+  const syncMultiplayerSession = useCallback(async () => {
+    if (!sessionId) {
       return;
     }
 
+    const data = await request<{ scenario: Scenario; eventLog: EngineEvent[] }>(`/session/${sessionId}`);
+    reconcileFromServerLog(data.eventLog);
     setLastError(null);
-    syncFromEngine();
+  }, [reconcileFromServerLog, sessionId]);
+
+  useEffect(() => {
+    if (mode !== "multiplayer" || !sessionId) {
+      return;
+    }
+
+    const handle = setInterval(() => {
+      void syncMultiplayerSession().catch((error) => {
+        setLastError(error instanceof Error ? error.message : "Failed to sync session.");
+      });
+    }, 2000);
+
+    return () => clearInterval(handle);
+  }, [mode, sessionId, syncMultiplayerSession]);
+
+  const dispatch = async (actionType: string, payload?: Record<string, unknown>) => {
+    const action: EngineAction = payload ? { type: actionType, payload } : { type: actionType };
+
+    if (mode === "local") {
+      const result = localEngine.dispatch(action);
+      if (!result.ok) {
+        setLastError(result.error.message);
+        return;
+      }
+
+      setLastError(null);
+      syncFromLocalEngine();
+      return;
+    }
+
+    if (!sessionId) {
+      setLastError("Multiplayer sessionId is required.");
+      return;
+    }
+
+    try {
+      const data = await request<{ eventLog: EngineEvent[]; integrity: "ok" }>(`/session/${sessionId}/action`, {
+        method: "POST",
+        body: JSON.stringify({
+          actionType,
+          payload: payload ?? {},
+          eventLog
+        })
+      });
+      reconcileFromServerLog(data.eventLog);
+      setLastError(null);
+    } catch (error) {
+      setLastError(error instanceof Error ? error.message : "Failed to dispatch action.");
+    }
   };
 
   const reset = () => {
-    engine.reset();
-    clearSession();
+    if (mode === "local") {
+      localEngine.reset();
+      clearSession();
+      setLastError(null);
+      syncFromLocalEngine();
+      return;
+    }
+
+    setEventLog([]);
+    setState(scenario.initialState);
+    setIntegrity({ ok: true });
     setLastError(null);
-    syncFromEngine();
   };
 
   const replayCheck = (): ReplayStatus => {
@@ -148,17 +270,23 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     target.payload = { ...target.payload, tokenLabel: "tampered" };
     target.action = { ...target.action, payload: { ...(target.action.payload ?? {}), tokenLabel: "tampered" } };
     setEventLog(mutable);
-    setIntegrity(verifyEventChain(mutable, engine.getInitialState()));
+    setIntegrity(verifyEventChain(mutable, scenario.initialState));
   };
 
   return {
+    mode,
     state,
     eventLog,
     lastError,
     integrity,
+    sessionId,
+    setSessionId,
+    setMode,
     dispatch,
     reset,
     replayCheck,
-    corruptLog
+    corruptLog,
+    createMultiplayerSession,
+    syncMultiplayerSession
   };
 };
