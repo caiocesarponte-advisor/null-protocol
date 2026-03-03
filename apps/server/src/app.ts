@@ -7,6 +7,45 @@ interface JsonResponse {
   body: unknown;
 }
 
+const CORS_ALLOWED_METHODS = "GET,POST,OPTIONS";
+const CORS_ALLOWED_HEADERS = "Content-Type,Authorization";
+
+const parseAllowedOrigins = (): Set<string> => {
+  const configuredOrigins = process.env.CORS_ORIGIN?.split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+
+  if (configuredOrigins && configuredOrigins.length > 0) {
+    return new Set(configuredOrigins);
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return new Set(["http://localhost:3000", "http://127.0.0.1:3000"]);
+  }
+
+  return new Set();
+};
+
+const resolveRequestOrigin = (originHeader: string | string[] | undefined): string | null => {
+  if (Array.isArray(originHeader)) {
+    return originHeader[0] ?? null;
+  }
+
+  return originHeader ?? null;
+};
+
+const applyCorsHeaders = (res: ServerResponse, allowedOrigins: Set<string>, origin: string | null): boolean => {
+  if (!origin || !allowedOrigins.has(origin)) {
+    return false;
+  }
+
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", CORS_ALLOWED_METHODS);
+  res.setHeader("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS);
+  return true;
+};
+
 const readJsonBody = async (req: IncomingMessage): Promise<unknown> => {
   const chunks: Buffer[] = [];
 
@@ -29,11 +68,26 @@ const sendJson = (res: ServerResponse, response: JsonResponse): void => {
 
 export const createServerApp = () => {
   const store = createSessionStore();
+  const allowedOrigins = parseAllowedOrigins();
 
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
       const method = req.method ?? "GET";
+      const origin = resolveRequestOrigin(req.headers.origin);
+      const hasCorsHeaders = applyCorsHeaders(res, allowedOrigins, origin);
+
+      if (method === "OPTIONS") {
+        if (hasCorsHeaders) {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
 
       if (method === "GET" && url.pathname === "/health") {
         sendJson(res, { status: 200, body: { ok: true } });
