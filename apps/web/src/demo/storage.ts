@@ -18,7 +18,13 @@ const isEngineEvent = (value: unknown): value is EngineEvent => {
   }
 
   return (
+    value.v === 1 &&
     typeof value.id === "string" &&
+    typeof value.ts === "number" &&
+    typeof value.actionType === "string" &&
+    isObject(value.payload) &&
+    typeof value.previousHash === "string" &&
+    typeof value.hash === "string" &&
     typeof value.eventIndex === "number" &&
     isObject(value.action) &&
     typeof value.action.type === "string" &&

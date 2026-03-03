@@ -90,12 +90,25 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
           <button type="button" onClick={runReplay}>
             Replay
           </button>
+          <button type="button" onClick={engine.corruptLog}>
+            Corrupt log (for test)
+          </button>
         </div>
 
         {replayStatus === "ok" && <p style={{ color: "green", margin: 0 }}>Replay OK</p>}
         {replayStatus === "mismatch" && <p style={{ color: "crimson", margin: 0 }}>Replay mismatch</p>}
       </section>
 
+
+
+      <section style={{ marginBottom: "1rem" }}>
+        <strong>
+          Integrity:{" "}
+          {engine.integrity.ok
+            ? "OK"
+            : `CORRUPTED (event ${engine.integrity.index}: ${engine.integrity.reason})`}
+        </strong>
+      </section>
       <section>
         <h2>Current State</h2>
         <pre>{JSON.stringify(engine.state, null, 2)}</pre>
@@ -147,7 +160,7 @@ export default function DemoPage() {
 
   return (
     <main style={{ fontFamily: "sans-serif", margin: "1.5rem", maxWidth: 900 }}>
-      <h1>Phase 4 Demo: Runtime + Loader + Persistence</h1>
+      <h1>Phase 5 Demo: Integridade + Auditoria + Determinismo Forte</h1>
       <p>Scenario source: {scenarioSourceLabel}</p>
 
       <section style={{ marginBottom: "1rem" }}>
