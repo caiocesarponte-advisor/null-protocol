@@ -98,7 +98,7 @@ export const createServerApp = () => {
         const body = (await readJsonBody(req)) as { scenario?: unknown };
         const created = store.createSession(body.scenario);
         await store.save();
-        sendJson(res, { status: 201, body: { sessionId: created.sessionId } });
+        sendJson(res, { status: 201, body: { sessionId: created.sessionId, scenarioHash: created.session.scenarioHash, scenarioId: created.session.scenarioId, scenarioVersion: created.session.scenarioVersion } });
         return;
       }
 
@@ -110,7 +110,38 @@ export const createServerApp = () => {
           return;
         }
 
-        sendJson(res, { status: 200, body: { scenario: session.scenario, eventLog: session.eventLog } });
+        const providedScenarioHash = url.searchParams.get("scenarioHash");
+        if (providedScenarioHash && providedScenarioHash !== session.scenarioHash) {
+          sendJson(res, {
+            status: 409,
+            body: {
+              error: `Scenario hash mismatch: expected ${session.scenarioHash}, provided ${providedScenarioHash}`,
+              expectedScenarioHash: session.scenarioHash,
+              providedScenarioHash
+            }
+          });
+          return;
+        }
+
+        sendJson(res, {
+          status: 200,
+          body: {
+            scenarioId: session.scenarioId,
+            scenarioVersion: session.scenarioVersion,
+            scenarioHash: session.scenarioHash,
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            scenario: session.scenario,
+            eventLog: session.eventLog
+          }
+        });
+        return;
+      }
+
+      const exportMatch = url.pathname.match(/^\/session\/([^/]+)\/export$/);
+      if (method === "GET" && exportMatch) {
+        const bundle = store.exportSession(exportMatch[1] ?? "");
+        sendJson(res, { status: 200, body: bundle });
         return;
       }
 
@@ -120,6 +151,7 @@ export const createServerApp = () => {
           actionType?: string;
           payload?: Record<string, unknown>;
           eventLog?: unknown;
+          scenarioHash?: string;
         };
 
         if (typeof body.actionType !== "string") {
@@ -129,6 +161,24 @@ export const createServerApp = () => {
 
         if (body.payload !== undefined && (typeof body.payload !== "object" || body.payload === null)) {
           sendJson(res, { status: 400, body: { error: "payload must be an object" } });
+          return;
+        }
+
+        const session = store.getSession(actionMatch[1] ?? "");
+        if (!session) {
+          sendJson(res, { status: 404, body: { error: "Session not found" } });
+          return;
+        }
+
+        if (typeof body.scenarioHash === "string" && body.scenarioHash !== session.scenarioHash) {
+          sendJson(res, {
+            status: 409,
+            body: {
+              error: `Scenario hash mismatch: expected ${session.scenarioHash}, provided ${body.scenarioHash}`,
+              expectedScenarioHash: session.scenarioHash,
+              providedScenarioHash: body.scenarioHash
+            }
+          });
           return;
         }
 

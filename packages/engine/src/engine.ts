@@ -130,6 +130,8 @@ const sha256Fallback = (input: string): string => {
 
 const sha256Hex = (input: string): string => sha256Fallback(input);
 
+export const hashCanonicalJson = (value: unknown): string => sha256Hex(stableStringify(value));
+
 const getPath = (state: Record<string, unknown>, path: string): unknown => {
   const segments = path.split(".");
   let current: unknown = state;

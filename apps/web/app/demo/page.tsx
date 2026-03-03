@@ -20,6 +20,7 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
   const [tokenLabel, setTokenLabel] = useState("alpha");
   const [raiseNextLevel, setRaiseNextLevel] = useState(1);
   const [reduceNextLevel, setReduceNextLevel] = useState(0);
+  const [exportBundle, setExportBundle] = useState<unknown | null>(null);
 
   const runReplay = () => {
     const nextStatus = engine.replayCheck();
@@ -71,8 +72,26 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
           <button type="button" onClick={() => void engine.syncMultiplayerSession()}>
             Join / Sync session
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              void engine
+                .exportSession()
+                .then((bundle) => setExportBundle(bundle))
+                .catch((error: unknown) => {
+                  setExportBundle(null);
+                  const message = error instanceof Error ? error.message : "Failed to export session.";
+                  console.error(message);
+                })
+            }
+          >
+            Export session
+          </button>
         </div>
         <p style={{ marginBottom: 0 }}>Current mode: {engine.mode}</p>
+        <p style={{ marginBottom: 0 }}>scenarioId: {engine.sessionScenarioId || "-"}</p>
+        <p style={{ marginBottom: 0 }}>scenarioVersion: {engine.sessionScenarioVersion || "-"}</p>
+        <p style={{ marginBottom: 0 }}>scenarioHash: {engine.sessionScenarioHash || "-"}</p>
       </section>
 
       <section style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
@@ -146,6 +165,13 @@ const EnginePanel = ({ scenario }: { scenario: Scenario }) => {
         <h2>Event Log</h2>
         <pre>{JSON.stringify(engine.eventLog, null, 2)}</pre>
       </section>
+
+      {exportBundle && (
+        <section>
+          <h2>Export bundle</h2>
+          <pre>{JSON.stringify(exportBundle, null, 2)}</pre>
+        </section>
+      )}
     </>
   );
 };

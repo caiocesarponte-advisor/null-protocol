@@ -1,18 +1,33 @@
 import {
   createEngine,
+  hashCanonicalJson,
+  replayScenario,
   verifyEventChain,
   type EngineAction,
   type EngineEvent,
+  type State,
   type VerifyEventChainResult
 } from "@null-protocol/engine";
 import { validateScenario, type Scenario } from "@null-protocol/scenario-kit";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+export interface SessionSnapshot {
+  eventIndex: number;
+  state: State;
+  finalHash: string;
+}
+
 export interface Session {
+  scenarioId: string;
+  scenarioVersion: string;
+  scenarioHash: string;
   scenario: Scenario;
   eventLog: EngineEvent[];
+  snapshots: SessionSnapshot[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SessionStore {
@@ -23,8 +38,25 @@ export interface SessionStore {
     action: EngineAction,
     clientEventLog?: unknown
   ) => { eventLog: EngineEvent[]; integrity: VerifyEventChainResult };
+  getSnapshotState: (sessionId: string, targetIndex?: number) => State;
+  exportSession: (sessionId: string) => SessionExport;
   save: () => Promise<void>;
   load: () => Promise<void>;
+}
+
+export interface SessionExport {
+  sessionId: string;
+  scenarioId: string;
+  scenarioVersion: string;
+  scenarioHash: string;
+  scenario: Scenario;
+  eventLog: EngineEvent[];
+  finalState: State;
+  integrity: {
+    ok: boolean;
+    finalHash: string | null;
+    eventCount: number;
+  };
 }
 
 interface PersistedState {
@@ -35,19 +67,40 @@ const PERSISTENCE_FILE = process.env.NULL_SERVER_PERSIST_PATH
   ? path.resolve(process.env.NULL_SERVER_PERSIST_PATH)
   : path.resolve(process.cwd(), "apps/server/data/sessions.json");
 
-const stableStringify = (value: unknown): string => {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
+const getSnapshotInterval = (): number => Number(process.env.NULL_SERVER_SNAPSHOT_INTERVAL ?? "50");
+
+const computeScenarioMetadata = (scenario: Scenario) => ({
+  scenarioId: scenario.metadata.id,
+  scenarioVersion: String(scenario.schemaVersion),
+  scenarioHash: hashCanonicalJson(scenario)
+});
+
+const rebuildSnapshots = (scenario: Scenario, eventLog: EngineEvent[]): SessionSnapshot[] => {
+  const snapshotInterval = getSnapshotInterval();
+  if (!Number.isFinite(snapshotInterval) || snapshotInterval <= 0) {
+    return [];
   }
 
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  const engine = createEngine({ scenario });
+  const snapshots: SessionSnapshot[] = [];
+
+  for (const event of eventLog) {
+    const result = engine.dispatch(event.action);
+    if (!result.ok) {
+      throw result.error;
+    }
+
+    if ((event.eventIndex + 1) % snapshotInterval === 0) {
+      const currentLog = engine.getEventLog() as EngineEvent[];
+      snapshots.push({
+        eventIndex: event.eventIndex,
+        state: engine.getState(),
+        finalHash: currentLog.at(-1)?.hash ?? ""
+      });
+    }
   }
 
-  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-    left.localeCompare(right)
-  );
-  return `{${entries.map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`).join(",")}}`;
+  return snapshots;
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -104,22 +157,27 @@ export const createSessionStore = (): SessionStore => {
           continue;
         }
 
-        const engine = createEngine({ scenario });
-        for (const event of session.eventLog) {
-          const result = engine.dispatch(event.action);
-          if (!result.ok) {
-            throw result.error;
-          }
-        }
+        const rebuiltState = replayScenario({ scenario, events: session.eventLog, verifyIntegrity: true });
+        const metadata = computeScenarioMetadata(scenario);
+        const createdAt = typeof session.createdAt === "string" ? session.createdAt : new Date().toISOString();
+        const updatedAt = typeof session.updatedAt === "string" ? session.updatedAt : createdAt;
+        const snapshots = Array.isArray(session.snapshots)
+          ? session.snapshots
+          : rebuildSnapshots(scenario, session.eventLog);
 
-        const rebuiltLog = engine.getEventLog() as EngineEvent[];
-        const originalDigest = createHash("sha256").update(stableStringify(session.eventLog)).digest("hex");
-        const rebuiltDigest = createHash("sha256").update(stableStringify(rebuiltLog)).digest("hex");
-        if (originalDigest !== rebuiltDigest) {
+        const rebuiltLog = structuredClone(session.eventLog);
+        if (!rebuiltState) {
           continue;
         }
 
-        sessions.set(sessionId, { scenario, eventLog: rebuiltLog });
+        sessions.set(sessionId, {
+          ...metadata,
+          scenario,
+          eventLog: rebuiltLog,
+          snapshots,
+          createdAt,
+          updatedAt
+        });
       }
     } catch {
       // Ignore missing/unreadable persistence file on boot.
@@ -130,7 +188,16 @@ export const createSessionStore = (): SessionStore => {
     createSession: (scenarioInput) => {
       const scenario = ensureScenario(scenarioInput);
       const sessionId = randomUUID();
-      const session: Session = { scenario, eventLog: [] };
+      const now = new Date().toISOString();
+      const metadata = computeScenarioMetadata(scenario);
+      const session: Session = {
+        ...metadata,
+        scenario,
+        eventLog: [],
+        snapshots: [],
+        createdAt: now,
+        updatedAt: now
+      };
       sessions.set(sessionId, session);
       return { sessionId, session };
     },
@@ -175,9 +242,77 @@ export const createSessionStore = (): SessionStore => {
       }
 
       session.eventLog = nextEventLog;
+      session.updatedAt = new Date().toISOString();
+      const snapshotInterval = getSnapshotInterval();
+      if (Number.isFinite(snapshotInterval) && snapshotInterval > 0 && nextEventLog.length % snapshotInterval === 0) {
+        session.snapshots.push({
+          eventIndex: nextEventLog.length - 1,
+          state: engine.getState(),
+          finalHash: nextEventLog.at(-1)?.hash ?? ""
+        });
+      }
+
       return {
         eventLog: nextEventLog,
         integrity
+      };
+    },
+
+    getSnapshotState: (sessionId, targetIndex) => {
+      const session = sessions.get(sessionId);
+      if (!session) {
+        throw new Error("Session not found");
+      }
+
+      const endIndex = typeof targetIndex === "number" ? targetIndex : session.eventLog.length - 1;
+      if (endIndex < 0) {
+        return structuredClone(session.scenario.initialState);
+      }
+
+      const latestSnapshot = [...session.snapshots]
+        .reverse()
+        .find((snapshot) => snapshot.eventIndex <= endIndex);
+
+      const startIndex = latestSnapshot ? latestSnapshot.eventIndex + 1 : 0;
+      const startState = latestSnapshot ? latestSnapshot.state : session.scenario.initialState;
+      const engine = createEngine({ scenario: { ...session.scenario, initialState: structuredClone(startState) } });
+
+      for (let index = startIndex; index <= endIndex; index += 1) {
+        const event = session.eventLog[index];
+        if (!event) {
+          break;
+        }
+
+        const result = engine.dispatch(event.action);
+        if (!result.ok) {
+          throw result.error;
+        }
+      }
+
+      return engine.getState();
+    },
+
+    exportSession: (sessionId) => {
+      const session = sessions.get(sessionId);
+      if (!session) {
+        throw new Error("Session not found");
+      }
+
+      const integrity = verifyEventChain(session.eventLog, session.scenario.initialState);
+      const finalState = replayScenario({ scenario: session.scenario, events: session.eventLog, verifyIntegrity: true });
+      return {
+        sessionId,
+        scenarioId: session.scenarioId,
+        scenarioVersion: session.scenarioVersion,
+        scenarioHash: session.scenarioHash,
+        scenario: session.scenario,
+        eventLog: session.eventLog,
+        finalState,
+        integrity: {
+          ok: integrity.ok,
+          finalHash: session.eventLog.at(-1)?.hash ?? null,
+          eventCount: session.eventLog.length
+        }
       };
     },
     save,
