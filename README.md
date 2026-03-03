@@ -6,6 +6,12 @@ Null Protocol é um framework open source de simulação educacional em ciberseg
 A especificação principal do projeto está em:
 - `DOCS/AI_PROJECT_SPECIFICATION.md`
 
+## Comandos rápidos
+- `yarn install` para instalar dependências do monorepo.
+- `yarn lint` para validação estática.
+- `yarn typecheck` para checagem de tipos.
+- `yarn test` para suíte de testes.
+
 ## Status do repositório
 Atualmente o projeto está em **Phase 4 (runtime + loader + persistência simulada)**.
 
@@ -33,7 +39,7 @@ Todos os documentos de produto, arquitetura, segurança e entrega estão central
 - `DOCS/PRIVACY.md`
 - `DOCS/TEST_STRATEGY.md`
 - `DOCS/CI_CD.md`
-- `DOCS/CONTRIBUTING.md`
+- `CONTRIBUTING.md`
 
 ## Non-Goals (resumo)
 Este projeto **não** implementa interação real com redes/sistemas (ex.: scanning real, packet sniffing, brute force, exploit automation, raw sockets, execução OS).
@@ -43,3 +49,8 @@ Todas as interações são simulações controladas pelo motor.
 
 ## Próximo marco recomendado
 **Phase 5: UX da demo, empacotamento/distribuição e hardening de validação/replay.**
+
+## Atualização rápida do projeto
+- Monorepo organizado por apps (`web`, `server`) e pacotes (`engine`, `scenario-kit`, `ui`).
+- Fluxo de qualidade padronizado via `lint`, `typecheck` e `test` no Turbo.
+- Base pronta para evolução de UX e distribuição sem sair dos non-goals de segurança.
