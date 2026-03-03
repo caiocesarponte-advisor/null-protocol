@@ -1,5 +1,6 @@
 import {
   createEngine,
+  hashCanonicalJson,
   replayScenario,
   verifyEventChain,
   type EngineAction,
@@ -22,6 +23,9 @@ interface UseDemoEngineResult {
   lastError: string | null;
   integrity: VerifyEventChainResult;
   sessionId: string;
+  sessionScenarioId: string;
+  sessionScenarioVersion: string;
+  sessionScenarioHash: string;
   setSessionId: (value: string) => void;
   setMode: (mode: DemoMode) => void;
   dispatch: (actionType: string, payload?: Record<string, unknown>) => Promise<void>;
@@ -30,6 +34,7 @@ interface UseDemoEngineResult {
   corruptLog: () => void;
   createMultiplayerSession: () => Promise<void>;
   syncMultiplayerSession: () => Promise<void>;
+  exportSession: () => Promise<unknown>;
 }
 
 const statesMatch = (left: State, right: State): boolean => JSON.stringify(left) === JSON.stringify(right);
@@ -38,6 +43,7 @@ const serverBaseUrl = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:40
 
 export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
   const localEngine = useMemo(() => createEngine({ scenario }), [scenario]);
+  const localScenarioHash = useMemo(() => hashCanonicalJson(scenario), [scenario]);
 
   const [mode, setMode] = useState<DemoMode>("local");
   const [sessionId, setSessionId] = useState("");
@@ -45,6 +51,9 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
   const [eventLog, setEventLog] = useState<readonly EngineEvent[]>(localEngine.getEventLog());
   const [lastError, setLastError] = useState<string | null>(null);
   const [integrity, setIntegrity] = useState<VerifyEventChainResult>({ ok: true });
+  const [sessionScenarioId, setSessionScenarioId] = useState("");
+  const [sessionScenarioVersion, setSessionScenarioVersion] = useState("");
+  const [sessionScenarioHash, setSessionScenarioHash] = useState("");
 
   const syncFromLocalEngine = useCallback(() => {
     const nextState = localEngine.getState();
@@ -156,17 +165,25 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
   };
 
   const createMultiplayerSession = async () => {
-    const response = await request<{ sessionId: string }>("/session", {
+    const response = await request<{ sessionId: string; scenarioId: string; scenarioVersion: string; scenarioHash: string }>("/session", {
       method: "POST",
       body: JSON.stringify({ scenario })
     });
 
     setSessionId(response.sessionId);
+    setSessionScenarioId(response.scenarioId);
+    setSessionScenarioVersion(response.scenarioVersion);
+    setSessionScenarioHash(response.scenarioHash);
     setMode("multiplayer");
     setLastError(null);
-    await request<{ scenario: Scenario; eventLog: EngineEvent[] }>(`/session/${response.sessionId}`).then((data) =>
-      reconcileFromServerLog(data.eventLog)
-    );
+    await request<{ scenario: Scenario; eventLog: EngineEvent[]; scenarioId: string; scenarioVersion: string; scenarioHash: string }>(
+      `/session/${response.sessionId}?scenarioHash=${encodeURIComponent(response.scenarioHash)}`
+    ).then((data) => {
+      setSessionScenarioId(data.scenarioId);
+      setSessionScenarioVersion(data.scenarioVersion);
+      setSessionScenarioHash(data.scenarioHash);
+      reconcileFromServerLog(data.eventLog);
+    });
   };
 
   const syncMultiplayerSession = useCallback(async () => {
@@ -174,10 +191,16 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
       return;
     }
 
-    const data = await request<{ scenario: Scenario; eventLog: EngineEvent[] }>(`/session/${sessionId}`);
+    const providedHash = localScenarioHash;
+    const data = await request<{ scenario: Scenario; eventLog: EngineEvent[]; scenarioId: string; scenarioVersion: string; scenarioHash: string }>(
+      `/session/${sessionId}?scenarioHash=${encodeURIComponent(providedHash)}`
+    );
+    setSessionScenarioId(data.scenarioId);
+    setSessionScenarioVersion(data.scenarioVersion);
+    setSessionScenarioHash(data.scenarioHash);
     reconcileFromServerLog(data.eventLog);
     setLastError(null);
-  }, [reconcileFromServerLog, sessionId]);
+  }, [localScenarioHash, reconcileFromServerLog, sessionId]);
 
   useEffect(() => {
     if (mode !== "multiplayer" || !sessionId) {
@@ -219,7 +242,8 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
         body: JSON.stringify({
           actionType,
           payload: payload ?? {},
-          eventLog
+          eventLog,
+          scenarioHash: sessionScenarioHash || localScenarioHash
         })
       });
       reconcileFromServerLog(data.eventLog);
@@ -227,6 +251,14 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     } catch (error) {
       setLastError(error instanceof Error ? error.message : "Failed to dispatch action.");
     }
+  };
+
+  const exportSession = async (): Promise<unknown> => {
+    if (!sessionId) {
+      throw new Error("Multiplayer sessionId is required.");
+    }
+
+    return request<unknown>(`/session/${sessionId}/export`);
   };
 
   const reset = () => {
@@ -241,6 +273,9 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     setEventLog([]);
     setState(scenario.initialState);
     setIntegrity({ ok: true });
+    setSessionScenarioId("");
+    setSessionScenarioVersion("");
+    setSessionScenarioHash("");
     setLastError(null);
   };
 
@@ -280,6 +315,9 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     lastError,
     integrity,
     sessionId,
+    sessionScenarioId,
+    sessionScenarioVersion,
+    sessionScenarioHash,
     setSessionId,
     setMode,
     dispatch,
@@ -287,6 +325,7 @@ export const useDemoEngine = (scenario: Scenario): UseDemoEngineResult => {
     replayCheck,
     corruptLog,
     createMultiplayerSession,
-    syncMultiplayerSession
+    syncMultiplayerSession,
+    exportSession
   };
 };
